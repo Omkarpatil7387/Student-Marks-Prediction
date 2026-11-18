@@ -3,18 +3,19 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
+
 from pathlib import Path
+from datetime import datetime
 from sklearn.ensemble import RandomForestRegressor
 
 # ---------------- PAGE CONFIG ----------------
 
 st.set_page_config(
-    page_title="Student Marks Prediction System",
-    page_icon="📚",
+    page_title="Student Marks Prediction",
     layout="wide"
 )
 
-# ---------------- DESIGN ----------------
+# ---------------- CUSTOM DESIGN ----------------
 
 st.markdown("""
 <style>
@@ -48,22 +49,23 @@ st.markdown("""
 
 .section-title {
     color: #153e5c;
-    font-size: 24px;
+    font-size: 25px;
     font-weight: 700;
-    margin-top: 25px;
+    margin-top: 20px;
+    margin-bottom: 12px;
 }
 
 .info-card {
     background: white;
     border: 1px solid #e1e9f0;
-    padding: 20px;
+    padding: 22px;
     border-radius: 12px;
-    min-height: 135px;
+    min-height: 145px;
 }
 
 .info-card h3 {
     color: #176b87;
-    font-size: 18px;
+    font-size: 19px;
 }
 
 .info-card p {
@@ -79,15 +81,13 @@ st.markdown("""
     text-align: center;
 }
 
-footer {
-    visibility: hidden;
-}
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------- PATHS ----------------
 
 BASE_DIR = Path(__file__).resolve().parent
+
 DATA_PATH = BASE_DIR / "data" / "student_marks.csv"
 MODEL_PATH = BASE_DIR / "model" / "student_marks_model.pkl"
 
@@ -99,9 +99,15 @@ FEATURES = [
     "Internal_Test_Score"
 ]
 
-TARGET = "Final_Marks"
+# ---------------- SESSION STORAGE ----------------
 
-# ---------------- LOAD OR TRAIN MODEL ----------------
+if "prediction_history" not in st.session_state:
+    st.session_state.prediction_history = []
+
+if "last_prediction" not in st.session_state:
+    st.session_state.last_prediction = None
+
+# ---------------- LOAD MODEL ----------------
 
 @st.cache_resource
 def load_model():
@@ -110,19 +116,22 @@ def load_model():
         return joblib.load(MODEL_PATH)
 
     if not DATA_PATH.exists():
-        raise FileNotFoundError(
-            "Dataset not found. Please check the data folder."
-        )
+        raise FileNotFoundError("Student dataset was not found.")
 
     df = pd.read_csv(DATA_PATH)
 
-    missing = [c for c in FEATURES + [TARGET] if c not in df.columns]
+    required_columns = FEATURES + ["Final_Marks"]
+
+    missing = [
+        column for column in required_columns
+        if column not in df.columns
+    ]
 
     if missing:
-        raise ValueError(f"Missing dataset columns: {missing}")
+        raise ValueError(f"Missing columns: {missing}")
 
     X = df[FEATURES]
-    y = df[TARGET]
+    y = df["Final_Marks"]
 
     model = RandomForestRegressor(
         n_estimators=150,
@@ -131,61 +140,52 @@ def load_model():
 
     model.fit(X, y)
 
-    MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
-    joblib.dump(model, MODEL_PATH)
-
     return model
-
 
 # ---------------- HEADER ----------------
 
 st.markdown("""
 <div class="hero">
     <h1>Student Marks Prediction System</h1>
-    <p>
-        A Machine Learning Based Academic Performance
-        Prediction Application
-    </p>
-    <p>
-        Analyze academic performance and estimate expected
-        final marks using student-related academic factors.
-    </p>
+    <p>Estimate academic performance using student study and assessment details.</p>
+    <p>Enter academic information, view predicted marks and keep a record of results.</p>
 </div>
 """, unsafe_allow_html=True)
 
 # ---------------- NAVIGATION ----------------
 
 page = st.radio(
-    "Navigate",
-    ["Home", "Predict Marks", "About Project"],
+    "Navigation",
+    ["Home", "Predict Marks", "Saved Results"],
     horizontal=True,
     label_visibility="collapsed"
 )
 
 st.divider()
 
-# ---------------- HOME PAGE ----------------
+# ==================================================
+# HOME PAGE
+# ==================================================
 
 if page == "Home":
 
     st.markdown(
-        '<div class="section-title">Welcome to the Prediction System</div>',
+        '<div class="section-title">Welcome</div>',
         unsafe_allow_html=True
     )
 
-    st.write(
-        "This application uses Machine Learning to estimate "
-        "a student's expected final marks based on academic "
-        "performance and study-related information."
-    )
+    st.write("""
+    Use this application to estimate expected final marks
+    based on academic performance and study-related information.
+    """)
 
     col1, col2, col3 = st.columns(3)
 
     with col1:
         st.markdown("""
         <div class="info-card">
-            <h3>Academic Analysis</h3>
-            <p>Uses study hours, attendance and previous academic scores.</p>
+            <h3>Academic Details</h3>
+            <p>Enter study hours, attendance and previous examination marks.</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -193,20 +193,20 @@ if page == "Home":
         st.markdown("""
         <div class="info-card">
             <h3>Marks Prediction</h3>
-            <p>Estimates expected final marks using a trained ML model.</p>
+            <p>Get an estimated final score based on the entered information.</p>
         </div>
         """, unsafe_allow_html=True)
 
     with col3:
         st.markdown("""
         <div class="info-card">
-            <h3>Study Guidance</h3>
-            <p>Provides general suggestions to support better study habits.</p>
+            <h3>Saved Records</h3>
+            <p>View previous predictions made during your current session.</p>
         </div>
         """, unsafe_allow_html=True)
 
     st.markdown(
-        '<div class="section-title">Factors Used for Prediction</div>',
+        '<div class="section-title">Information Used</div>',
         unsafe_allow_html=True
     )
 
@@ -222,12 +222,11 @@ if page == "Home":
         with st.expander(name):
             st.write(description)
 
-    st.info(
-        "Select 'Predict Marks' above to enter academic details "
-        "and generate a prediction."
-    )
+    st.info("Open Predict Marks to enter details and calculate an estimate.")
 
-# ---------------- PREDICTION PAGE ----------------
+# ==================================================
+# PREDICTION PAGE
+# ==================================================
 
 elif page == "Predict Marks":
 
@@ -236,68 +235,73 @@ elif page == "Predict Marks":
         unsafe_allow_html=True
     )
 
-    st.write("Enter the student's academic information below.")
+    st.write("Enter the details below to calculate estimated final marks.")
 
-    student_name = st.text_input(
-        "Student Name (optional)",
-        placeholder="Enter student name"
-    )
+    with st.form("prediction_form"):
 
-    student_class = st.text_input(
-        "Class / Division (optional)",
-        placeholder="Example: Third Year - Computer Engineering"
-    )
-
-    st.markdown(
-        '<div class="section-title">Academic Performance Details</div>',
-        unsafe_allow_html=True
-    )
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        study_hours = st.number_input(
-            "Daily Study Hours",
-            min_value=0.0,
-            max_value=24.0,
-            value=3.0,
-            step=0.5
+        student_name = st.text_input(
+            "Name (optional)",
+            placeholder="Enter name"
         )
 
-        attendance = st.slider(
-            "Attendance Percentage",
-            min_value=0,
-            max_value=100,
-            value=75
+        student_class = st.text_input(
+            "Class / Division (optional)",
+            placeholder="Enter class or division"
         )
 
-        previous_marks = st.number_input(
-            "Previous Marks",
-            min_value=0.0,
-            max_value=100.0,
-            value=65.0
+        st.markdown("### Academic Performance")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+
+            study_hours = st.number_input(
+                "Daily Study Hours",
+                min_value=0.0,
+                max_value=24.0,
+                value=3.0,
+                step=0.5
+            )
+
+            attendance = st.slider(
+                "Attendance Percentage",
+                min_value=0,
+                max_value=100,
+                value=75
+            )
+
+            previous_marks = st.number_input(
+                "Previous Marks",
+                min_value=0.0,
+                max_value=100.0,
+                value=65.0
+            )
+
+        with col2:
+
+            assignment_score = st.number_input(
+                "Assignment Score",
+                min_value=0.0,
+                max_value=100.0,
+                value=70.0
+            )
+
+            internal_score = st.number_input(
+                "Internal Test Score",
+                min_value=0.0,
+                max_value=100.0,
+                value=65.0
+            )
+
+        submitted = st.form_submit_button(
+            "Predict Final Marks",
+            use_container_width=True
         )
 
-    with col2:
-        assignment_score = st.number_input(
-            "Assignment Score",
-            min_value=0.0,
-            max_value=100.0,
-            value=70.0
-        )
-
-        internal_score = st.number_input(
-            "Internal Test Score",
-            min_value=0.0,
-            max_value=100.0,
-            value=65.0
-        )
-
-    st.write("")
-
-    if st.button("Predict Final Marks", type="primary", use_container_width=True):
+    if submitted:
 
         try:
+
             model = load_model()
 
             input_data = pd.DataFrame([{
@@ -311,179 +315,157 @@ elif page == "Predict Marks":
             prediction = float(model.predict(input_data)[0])
             prediction = float(np.clip(prediction, 0, 100))
 
-            st.divider()
+            record = {
+                "Date and Time": datetime.now().strftime(
+                    "%d-%m-%Y %I:%M %p"
+                ),
+                "Student Name": student_name.strip() or "Not provided",
+                "Class": student_class.strip() or "Not provided",
+                "Study Hours": study_hours,
+                "Attendance": attendance,
+                "Previous Marks": previous_marks,
+                "Assignment Score": assignment_score,
+                "Internal Test Score": internal_score,
+                "Predicted Marks": round(prediction, 2)
+            }
 
-            st.markdown(
-                '<div class="section-title">Prediction Result</div>',
-                unsafe_allow_html=True
+            # Automatically save the result in this session
+            st.session_state.prediction_history.append(record)
+            st.session_state.last_prediction = record
+
+        except Exception as error:
+            st.error(f"Prediction could not be generated: {error}")
+
+    # DISPLAY LATEST RESULT
+
+    result = st.session_state.last_prediction
+
+    if result is not None:
+
+        st.divider()
+
+        st.markdown(
+            '<div class="section-title">Prediction Result</div>',
+            unsafe_allow_html=True
+        )
+
+        if result["Student Name"] != "Not provided":
+            st.write(f"**Student:** {result['Student Name']}")
+
+        if result["Class"] != "Not provided":
+            st.write(f"**Class:** {result['Class']}")
+
+        st.markdown(f"""
+        <div class="result-card">
+            <p style="color:#526477; font-size:17px;">
+                Estimated Final Marks
+            </p>
+            <h1 style="color:#176b87; font-size:48px;">
+                {result['Predicted Marks']:.2f} / 100
+            </h1>
+            <p style="color:#526477;">
+                Estimated result
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.progress(result["Predicted Marks"] / 100)
+
+        if result["Predicted Marks"] >= 75:
+            st.success("The estimated score is in the higher range.")
+
+        elif result["Predicted Marks"] >= 50:
+            st.info("The estimated score is in the middle range.")
+
+        else:
+            st.warning("The estimated score is in the lower range.")
+
+        st.markdown("### Study Suggestions")
+
+        suggestions = []
+
+        if result["Study Hours"] < 2:
+            suggestions.append("Build a regular daily study routine.")
+
+        if result["Attendance"] < 75:
+            suggestions.append("Try to attend classes regularly.")
+
+        if result["Assignment Score"] < 60:
+            suggestions.append("Give more attention to assignments.")
+
+        if result["Internal Test Score"] < 60:
+            suggestions.append("Practice questions and revise internal topics.")
+
+        if result["Previous Marks"] < 60:
+            suggestions.append("Revise basic concepts and previous mistakes.")
+
+        if not suggestions:
+            suggestions.append(
+                "Continue your current study routine and revise regularly."
             )
 
-            if student_name.strip():
-                st.write(f"**Student:** {student_name}")
+        for suggestion in suggestions:
+            st.write(f"- {suggestion}")
 
-            if student_class.strip():
-                st.write(f"**Class:** {student_class}")
+        st.success("This prediction has been added to Saved Results.")
 
-            st.markdown(f"""
-            <div class="result-card">
-                <p style="color:#526477; font-size:17px;">
-                    Estimated Final Marks
-                </p>
-                <h1 style="color:#176b87; font-size:48px;">
-                    {prediction:.2f} / 100
-                </h1>
-                <p style="color:#526477;">
-                    Machine Learning Prediction
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
+        st.caption(
+            "Predictions are estimates based on the available practice dataset "
+            "and are not guaranteed examination results."
+        )
 
-            st.progress(prediction / 100)
+# ==================================================
+# SAVED RESULTS PAGE
+# ==================================================
 
-            if prediction >= 75:
-                st.success("The model estimates a strong academic performance.")
-            elif prediction >= 50:
-                st.info("The model estimates a moderate academic performance.")
-            else:
-                st.warning(
-                    "The model estimates that additional academic support "
-                    "and study planning may be useful."
-                )
-
-            st.markdown("### Study Improvement Suggestions")
-
-            suggestions = []
-
-            if study_hours < 2:
-                suggestions.append(
-                    "Create a consistent daily study routine."
-                )
-
-            if attendance < 75:
-                suggestions.append(
-                    "Try to attend classes regularly and revise missed topics."
-                )
-
-            if assignment_score < 60:
-                suggestions.append(
-                    "Spend more time understanding and completing assignments."
-                )
-
-            if internal_score < 60:
-                suggestions.append(
-                    "Practice questions and revise internal test topics."
-                )
-
-            if previous_marks < 60:
-                suggestions.append(
-                    "Review previous mistakes and strengthen basic concepts."
-                )
-
-            if not suggestions:
-                suggestions.append(
-                    "Continue your current study habits and revise regularly."
-                )
-
-            for suggestion in suggestions:
-                st.write(f"- {suggestion}")
-
-            st.caption(
-                "Note: This result is an estimate from a practice ML model, "
-                "not a guaranteed examination result."
-            )
-
-        except Exception as e:
-            st.error(f"Unable to generate prediction: {e}")
-
-# ---------------- ABOUT PAGE ----------------
-
-elif page == "About Project":
+elif page == "Saved Results":
 
     st.markdown(
-        '<div class="section-title">About the Project</div>',
+        '<div class="section-title">Saved Results</div>',
         unsafe_allow_html=True
     )
 
-    st.write("""
-    The Student Marks Prediction System is a Machine Learning
-    project developed to estimate student academic performance.
+    history = st.session_state.prediction_history
 
-    The system uses academic information such as study hours,
-    attendance, previous marks, assignment scores and internal
-    test scores to predict expected final marks.
-    """)
+    if len(history) == 0:
 
-    st.markdown("### Project Objectives")
+        st.info("No saved predictions yet. Go to Predict Marks to create one.")
 
-    st.write("""
-    - Understand student academic performance.
-    - Apply regression algorithms to a marks prediction problem.
-    - Train and evaluate Machine Learning models.
-    - Build a simple web application for predictions.
-    - Present prediction results in an understandable format.
-    """)
+    else:
 
-    st.markdown("### How the System Works")
+        results_df = pd.DataFrame(history)
 
-    steps = [
-        "Collect student academic information.",
-        "Prepare and process the dataset.",
-        "Train regression models using historical practice data.",
-        "Select a trained model for prediction.",
-        "Enter new student information.",
-        "Display estimated final marks."
-    ]
+        total = len(results_df)
+        average = results_df["Predicted Marks"].mean()
+        highest = results_df["Predicted Marks"].max()
 
-    for i, step in enumerate(steps, 1):
-        st.write(f"**Step {i}:** {step}")
+        col1, col2, col3 = st.columns(3)
 
-    st.markdown("### Technology Used")
+        col1.metric("Total Predictions", total)
+        col2.metric("Average Predicted Marks", f"{average:.2f}")
+        col3.metric("Highest Predicted Marks", f"{highest:.2f}")
 
-    tech1, tech2, tech3 = st.columns(3)
+        st.markdown("### Prediction History")
 
-    with tech1:
-        st.markdown("""
-        <div class="info-card">
-            <h3>Python</h3>
-            <p>Programming language used for model development.</p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.dataframe(
+            results_df,
+            use_container_width=True,
+            hide_index=True
+        )
 
-    with tech2:
-        st.markdown("""
-        <div class="info-card">
-            <h3>Scikit-learn</h3>
-            <p>Machine Learning algorithms and model training.</p>
-        </div>
-        """, unsafe_allow_html=True)
+        csv_data = results_df.to_csv(index=False).encode("utf-8")
 
-    with tech3:
-        st.markdown("""
-        <div class="info-card">
-            <h3>Streamlit</h3>
-            <p>Interactive web application development.</p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.download_button(
+            label="Download Results as CSV",
+            data=csv_data,
+            file_name="student_prediction_results.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
 
-    st.markdown("### Dataset Information")
+        if st.button("Clear Saved Results", type="secondary"):
+            st.session_state.prediction_history = []
+            st.session_state.last_prediction = None
+            st.rerun()
 
-    st.write("""
-    This project package uses a synthetically generated practice
-    dataset. It is intended to demonstrate the Machine Learning
-    workflow and should not be treated as verified real-world
-    student performance data.
-    """)
-
-# ---------------- FOOTER ----------------
-
-st.divider()
-
-st.markdown("""
-<div style="text-align:center; color:#718096; padding:15px;">
-    <strong>Student Marks Prediction System</strong>
-    <br>
-    Machine Learning Academic Project
-    <br>
-    <small>Developed using Python, Scikit-learn and Streamlit</small>
-</div>
-""", unsafe_allow_html=True)
+# ---------------- END ----------------
