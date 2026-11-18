@@ -1,0 +1,74 @@
+# STUDENT MARKS PREDICTION — COMPLETE PROJECT
+
+This folder contains the complete college-level ML project.
+
+## Files
+
+data/student_marks.csv
+    Dataset with 500 student records.
+
+notebook/Student_Marks_Prediction.ipynb
+    Full ML project notebook covering Parts A-L.
+
+train_model.py
+    Trains Linear Regression, Decision Tree and Random Forest, compares them,
+    and saves the selected model.
+
+app.py
+    Streamlit frontend. It loads the saved model and predicts final marks.
+
+model/
+    The trained model will be created here after running the notebook or train_model.py.
+
+requirements.txt
+    Required Python packages.
+
+## Project inputs
+
+1. Study Hours per Day
+2. Attendance (%)
+3. Previous Exam Marks
+4. Assignment Score
+5. Internal Test Score
+
+## Target
+
+Final Marks out of 100.
+
+## Models
+
+- Linear Regression
+- Decision Tree Regression
+- Random Forest Regression
+
+## Evaluation
+
+- MAE
+- MSE
+- RMSE
+- R²
+
+## Frontend
+
+The frontend is intentionally simple and college-project oriented:
+- no emojis
+- clean blue/teal academic theme
+- clear input form
+- prediction result
+- model-generated prediction
+
+## Important
+
+Run the notebook from the notebook folder or run train_model.py from the project root.
+The frontend needs model/student_marks_model.pkl to exist before prediction.
+
+The final project follows the structure specified in the provided ML project instructions.
+
+
+## Dataset note — read before presenting
+
+The included 500-row CSV is a synthetically generated practice dataset, not real student records
+and not an official UCI/Kaggle dataset. It was created to let the project run as a demonstration.
+Say this honestly if asked. Results on this dataset demonstrate the ML workflow only; they do
+not establish real-world predictive accuracy. For a stronger academic submission, replace it
+with a permitted, documented educational dataset and update the report accordingly.
